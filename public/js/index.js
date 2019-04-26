@@ -1,10 +1,11 @@
 
 let mobSocket = new MobSocket();
 let ws = mobSocket.createClientSocket({
-  onOpen: function () { msg(); }
+  onOpen: function () { msg(); },
+  autoReconnect: true
 });
 
 function msg () {
-  ws.send('this is a test');
+  mobSocket.getClientWebSocket().send('this is a test');
   setTimeout(function () { msg(); }, 1000);
 }
