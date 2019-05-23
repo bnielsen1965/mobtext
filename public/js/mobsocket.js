@@ -19,6 +19,9 @@ class MobSocket {
     this.serverWS = null;
     this.clientOptions = DefaultClientOptions;
     this.serverOptions = {};
+    this.connections = {};
+
+    this.serverOnConnect = this._serverOnConnect.bind(this);
   }
 
 
@@ -36,10 +39,8 @@ class MobSocket {
     let self = this;
     this.serverWS
       .on('connection', function (ws, req) {
-        ws.on('message', function (message) {
-          (self.serverOptions.onMessage ? self.serverOptions.onMessage(ws, message) : self.serverOnMessage(message));
-        });
-        (self.serverOptions.onConnect ? self.serverOptions.onConnect(ws) : self.serverOnConnect(ws));
+        self.serverOnConnect(ws);
+        if (self.serverOptions.onConnect) { self.serverOptions.onConnect(ws); }
       })
       .on('error', function (err) {
         (self.serverOptions.onError ? self.serverOptions.onError(err) : self.serverOnError(err));
@@ -51,12 +52,39 @@ class MobSocket {
     console.log('MESSAGE:', message);
   }
 
-  serverOnConnect (ws) {
+  _serverOnConnect (ws) {
+    let self = this;
     console.log('CLIENT CONNECTED');
+    let uuid = this.serverOptions.uuidMethod();
+    self.connections[uuid] = { uuid: uuid, ws: ws };
+    ws
+      .on('message', function (message) {
+        (self.serverOptions.onMessage ? self.serverOptions.onMessage(uuid, message) : self.serverOnMessage(message));
+      })
+      .on('close', function () {
+        console.log('Client closed', uuid, self.connections);
+        delete self.connections[uuid];
+      });
   }
 
   serverOnError (err) {
     console.log('SERVER ERROR', err);
+  }
+
+  sendToClient (uuid, message) {
+    this.connections[uuid].ws.send(message);
+  }
+
+  sendToClients (message, targeted) {
+    let self = this;
+    let targets = Object.keys(targeted);
+    Object.keys(self.connections).forEach(function (uuid) {
+      if (-1 !== targets.indexOf(uuid)) {
+        self.connections[uuid].ws.send(targeted[uuid]);
+        return;
+      }
+      self.connections[uuid].ws.send(message);
+    });
   }
 
 
